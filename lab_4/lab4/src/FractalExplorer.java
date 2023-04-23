@@ -12,6 +12,7 @@ public class FractalExplorer{
     private JImageDisplay _image;
     private JComboBox<String> _fractalChooser;
     private JButton _resetButton;
+    private JButton _saveButton;
     private FractalGenerator _gen;
     private Rectangle2D.Double _range;
     private int _rowsRemaining;
@@ -45,12 +46,12 @@ public class FractalExplorer{
                         _displaySize, x);
                 int numIters;
                 int rgbColor = 0;
-                float hue;
+                float col;
 
                 numIters = _gen.numIterations(xCoord, yCoord);
                 if (numIters >= 0) {
-                    hue = 0.7f + numIters / 200f;
-                    rgbColor = Color.HSBtoRGB(hue, 1f, 1f);
+                    col = 0.1f + numIters / 2000f;
+                    rgbColor = Color.HSBtoRGB(col, 1f, 1f);
                 }
 
                 _RGBVals[x] = rgbColor;
@@ -81,10 +82,15 @@ public class FractalExplorer{
             if (e.getSource() == _fractalChooser) {
                 String selectedItem = _fractalChooser.getSelectedItem().toString();
 
-                if (selectedItem.equals(Mandelbrot.getString()))  {
+                if (selectedItem.equals(Mandelbrot.getString())) {
                     _gen = new Mandelbrot();
                 }
-                else if(e.getSource() != _fractalChooser){
+                if (selectedItem.equals(Tricorn.getString())) {
+                    _gen = new Tricorn();
+                }
+                if (selectedItem.equals(Burning_Ship.getString())) {
+                    _gen = new Burning_Ship();
+                } else if (e.getSource() != _fractalChooser) {
                     JOptionPane.showMessageDialog(null, "Error: Couldn't recognize choice");
                     return;
                 }
@@ -94,13 +100,35 @@ public class FractalExplorer{
 
                 drawFractal();
             }
+            else if (cmd.equals("save")) {
+                JFileChooser chooser = new JFileChooser();
+
+                FileNameExtensionFilter filter = new FileNameExtensionFilter("PNG Images", "png");
+                chooser.setFileFilter(filter);
+                chooser.setAcceptAllFileFilterUsed(false);
+
+                if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+                    try {
+                        File f = chooser.getSelectedFile();
+                        String filePath = f.getPath();
+                        if (!filePath.toLowerCase().endsWith(".png")) {
+                            f = new File(filePath + ".png");
+                        }
+
+                        ImageIO.write(_image.getImage(), "png", f);
+                    }
+                    catch (IOException exc) {
+                        JOptionPane.showMessageDialog(null, "Error: Couldn't save image ( "
+                                + exc.getMessage() + " )");
+                    }
+                }
+            }
             else if (cmd.equals("reset")) {
                 _range = new Rectangle2D.Double();
                 _gen.getInitialRange(_range);
 
                 drawFractal();
             }
-
             else {
                 JOptionPane.showMessageDialog(null, "Error: Couldn't recognize action");
             }
@@ -166,6 +194,8 @@ public class FractalExplorer{
 
         _fractalChooser = new JComboBox<String>();
         _fractalChooser.addItem(Mandelbrot.getString());
+        _fractalChooser.addItem(Tricorn.getString());
+        _fractalChooser.addItem(Burning_Ship.getString());
         _fractalChooser.addActionListener(handler);
         fractalPanel.add(_fractalChooser);
         frame.getContentPane().add(fractalPanel, BorderLayout.NORTH);
@@ -174,7 +204,12 @@ public class FractalExplorer{
         frame.getContentPane().add(_image, BorderLayout.CENTER);
         // кнопки
         JPanel buttonsPanel = new JPanel();
+        // сохранение
+        _saveButton = new JButton("Save Image");
+        _saveButton.setActionCommand("save");
+        _saveButton.addActionListener(handler);
 
+        buttonsPanel.add(_saveButton);
         // ресет
         _resetButton = new JButton("Reset Display");
         _resetButton.setActionCommand("reset");
