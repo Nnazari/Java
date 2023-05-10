@@ -1,46 +1,56 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.MalformedURLException;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
+
 import java.net.URL;
+import java.net.*;
+import java.util.Scanner;
 
-public class CrawlerTask implements Runnable {
-    URLPool urlPool;
-    public static final String URL_PREFIX = "http://";
+public class CrawlerTask extends Thread {
+    private URLPool pool;
 
-    public CrawlerTask(URLPool pool) {
-        this.urlPool = pool;
+    public CrawlerTask(URLDepthPair link) {
+        pool = new URLPool();
+        pool.addLink(link);
     }
-
-    public static void buildNewUrl(String str, int depth, URLPool pool) {
+    private void CreateNewThread(URLDepthPair link)  {   //Потоки
+        CrawlerTask task = new CrawlerTask(link);
+        task.start();
+    }
+    private URLDepthPair createNewLink(String newURL, URLDepthPair link){
+        if (newURL.startsWith("/")) {
+            newURL = link.getURL() + newURL;
+        }
+        else if (!newURL.startsWith("https")) return null; //
+        return new URLDepthPair(newURL, link.getDepth() + 1);
+    }
+    private void findLinks(URLDepthPair link)
+    {
         try {
-            int end_of_link = str.indexOf("\"", str.indexOf(URL_PREFIX));
-            String currentLink = str.substring(str.indexOf(URL_PREFIX), end_of_link);
-            pool.addPair(new URLDepthPair(currentLink, depth + 1));
+            URL url = new URL(link.getURL());
 
-        } catch (StringIndexOutOfBoundsException ignored) {
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+
+            Scanner scanner = new Scanner(connection.getInputStream());
+
+            while (scanner.findWithinHorizon("<a\\s+(?:[^>]*?\\s+)?href=([\"'])(.*?)\\1", 0) != null) {
+                String newURL = scanner.match().group(2);
+                URLDepthPair newLink =  createNewLink(newURL, link);
+                if (newLink == null) continue;
+                CreateNewThread(newLink);  //   Новый поток
+            }
+        }
+        catch (Exception e) {
+            System.err.println("Ошибка: " + e.getMessage());
         }
     }
-
     @Override
     public void run() {
-        while (true) {
-            try{
-            URLDepthPair currentPair = urlPool.getPair();
-            URL lol = new URL(currentPair.getURL());
-            BufferedReader in = new BufferedReader(new InputStreamReader(lol.openStream()));
-            String line;
-            while ((line = in.readLine()) != null) {
-                if (line.contains(URL_PREFIX) && line.contains("<a href=")) {
-                    buildNewUrl(line, currentPair.getDepth(), urlPool);
-                }
-            }
-        }catch(IOException e){
+        URLDepthPair link = pool.getLink();
+        System.out.println(link.toWrite());
+        System.out.println("Кол во активных потоков("+Thread.activeCount()+")");
+        Crawler.CountURLs++;
+        if(link.getDepth() == Crawler.getMaxDepth())
+            return;
 
-            }
-        }
+        findLinks(link);
     }
 }

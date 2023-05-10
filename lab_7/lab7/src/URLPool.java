@@ -1,48 +1,38 @@
-import java.util.LinkedList;
+import java.util.*;
 
 public class URLPool {
-    LinkedList<URLDepthPair> findLink;
-    LinkedList<URLDepthPair> viewedLink;
-    int maxDepth;
-    int cWait;
+    private HashMap<String, URLDepthPair> visited;
+    private LinkedList<URLDepthPair> pool;
 
-    public URLPool(int maxDepth) {
-        this.maxDepth = maxDepth;
-        findLink = new LinkedList<URLDepthPair>();
-        viewedLink = new LinkedList<URLDepthPair>();
-        cWait = 0;
+    public URLPool(){
+        visited = new HashMap<>();
+        pool = new LinkedList<>();
     }
-
-    public synchronized URLDepthPair getPair() {
-        while (findLink.size() == 0) {
-            cWait++;
+    public synchronized void addLink(URLDepthPair link){
+        if(!visited.containsKey(link.getURL())) {
+            pool.add(link);
+            this.notify();
+        }
+    }
+    public synchronized URLDepthPair getLink(){ //синхронизация
+        boolean isWaiting = false;
+        if(pool.size() == 0) {
             try {
-                wait();
-            } catch (InterruptedException e) {
-                System.out.println("Ignoring InterruptedException");
+                Crawler.WaitingThreads++;
+                isWaiting = true;
+                if(Crawler.WaitingThreads == Thread.activeCount()) {
+                    System.err.println("Все потоки заняты");
+                    System.exit(0);
+                }
+                this.wait();
             }
-            cWait--;
+            catch (Exception e) { return null; }
         }
-        URLDepthPair nextPair = findLink.removeFirst();
-        return nextPair;
+        if(isWaiting) Crawler.WaitingThreads--;
+        URLDepthPair link = pool.pop();
+        visited.put(link.getURL(),link);
+        return link;
     }
 
-    public synchronized void addPair(URLDepthPair pair) {
-        if(URLDepthPair.check(viewedLink,pair)) {
-            viewedLink.add(pair);
-            if (pair.getDepth() < maxDepth) {
-                findLink.add(pair);
-                notify();
-            }
-        }
-    }
-
-    public synchronized int getWait() {
-        return cWait;
-    }
-
-    public LinkedList<URLDepthPair> getResult() {
-        return viewedLink;
-    }
 
 }
